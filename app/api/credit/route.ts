@@ -10,12 +10,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const customer = searchParams.get('customer');
     const status = searchParams.get('status');
+    const saleType = searchParams.get('saleType');
 
     const query: Record<string, unknown> = {};
     if (customer) query.customer = customer;
     if (status) query.status = status;
+    if (saleType && saleType !== 'all') {
+      query.saleType = saleType;
+    }
 
-    const credits = await Credit.find(query).sort({ createdAt: -1 });
+    const credits = await Credit.find(query).populate('sale').sort({ createdAt: -1 });
     return Response.json(credits);
   } catch (error) {
     return Response.json({ error: 'Failed to fetch credits' }, { status: 500 });

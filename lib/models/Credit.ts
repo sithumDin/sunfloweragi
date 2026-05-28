@@ -14,6 +14,7 @@ const CreditSchema = new Schema({
   totalAmount: { type: Number, required: true },
   paidAmount: { type: Number, default: 0 },
   remainingAmount: { type: Number, required: true },
+  saleType: { type: String, enum: ['retail', 'wholesale'], default: 'retail' },
   payments: [CreditPaymentSchema],
   status: { type: String, enum: ['pending', 'partial', 'paid'], default: 'pending' },
 }, { timestamps: true });
