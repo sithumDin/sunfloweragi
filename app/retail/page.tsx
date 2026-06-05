@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Product, CartItem } from '@/lib/types';
-import { generateReceipt } from '@/lib/pdf';
+import { Product, CartItem, Sale } from '@/lib/types';
+import { generateReceipt, generateReceiptText } from '@/lib/pdf';
 
 function formatLKR(amount: number) {
   return `LKR ${amount.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -11,6 +11,7 @@ function formatLKR(amount: number) {
 function getRetailPrice(product: Product) {
   return product.retailPrice ?? product.sellingPrice ?? 0;
 }
+
 
 export default function RetailPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -25,9 +26,9 @@ export default function RetailPage() {
   const [otherCharges, setOtherCharges] = useState('');
   const [otherChargesDescription, setOtherChargesDescription] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  const [receiptPhone, setReceiptPhone] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -97,23 +98,9 @@ export default function RetailPage() {
   const total = subtotal - discountAmount + otherChargesAmount;
   const totalCost = cart.reduce((sum, c) => sum + c.product.costPrice * c.qty, 0);
   const profit = total - totalCost - otherChargesAmount;
-  const whatsappPhonePattern = /^\+94\s\d{2}\s\d{3}\s\d{4}$/;
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
-
-    if (sendWhatsApp) {
-      if (!customerPhone.trim()) {
-        alert('Please enter customer WhatsApp number. Format: +94 76 180 9833');
-        return;
-      }
-
-      if (!whatsappPhonePattern.test(customerPhone.trim())) {
-        alert('Invalid number format. Please use: +94 76 180 9833');
-        return;
-      }
-    }
-
     setProcessing(true);
 
     const saleData = {
@@ -146,71 +133,16 @@ export default function RetailPage() {
 
       if (res.ok) {
         const sale = await res.json();
-        await generateReceipt(sale);
-        
-        if (sendWhatsApp) {
-          const text = [
-            `Govi Sewana Receipt`,
-            `Invoice: ${sale.invoiceNo}`,
-            `Customer: ${sale.customerName || 'Walk-in Customer'}`,
-            `Total: ${formatLKR(sale.total)}`,
-            `Payment: ${sale.paymentMethod}`,
-            `Date: ${new Date(sale.date).toLocaleString('en-LK')}`,
-            `Thank you for your purchase!`,
-          ].join('\n');
+        setCompletedSale(sale);
+        setReceiptPhone('');
 
-          try {
-            const waRes = await fetch('/api/whatsapp/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ to: customerPhone.trim(), text }),
-            });
-
-            if (waRes.ok) {
-              alert('Sale completed. WhatsApp message sent successfully.');
-            } else {
-              const waData = await waRes.json().catch(() => ({ error: 'Failed to send WhatsApp' }));
-              const errorText = String(waData.error || 'Unknown error');
-              const lowerError = errorText.toLowerCase();
-
-              if (lowerError.includes('not configured')) {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID, then restart the server.`);
-              } else if (
-                lowerError.includes('session has expired') ||
-                lowerError.includes('error validating access token') ||
-                lowerError.includes('invalid oauth access token')
-              ) {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please regenerate WHATSAPP_ACCESS_TOKEN in Meta and restart the server.`);
-              } else if (
-                lowerError.includes('invalid phone') ||
-                lowerError.includes('invalid wa id') ||
-                lowerError.includes('phone number')
-              ) {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please ensure the phone number is correct with country code (+94).`);
-              } else {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please check WhatsApp API credentials and try again.`);
-              }
-            }
-          } catch (error) {
-            console.error('WhatsApp send error:', error);
-            alert('Sale completed. WhatsApp could not be sent due to a network error.');
-          }
-        } else {
-          alert('Sale completed.');
-        }
-
-
-        // Reset
         setCart([]);
         setDiscount('');
         setOtherCharges('');
         setOtherChargesDescription('');
         setCustomerName('');
-        setCustomerPhone('');
-        setSendWhatsApp(false);
         setPaymentMethod('cash');
 
-        // Refresh products
         const updatedProducts = await fetch('/api/products').then((r) => r.json());
         setProducts(updatedProducts);
       }
@@ -220,6 +152,17 @@ export default function RetailPage() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handleSendWhatsApp = () => {
+    if (!completedSale) return;
+    const phone = receiptPhone.trim().replace(/\D/g, '');
+    if (!phone) {
+      alert('Please enter a WhatsApp number to continue.');
+      return;
+    }
+    const text = generateReceiptText(completedSale);
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
   const filteredProducts = products.filter((p) =>
@@ -242,6 +185,8 @@ export default function RetailPage() {
 
   useEffect(() => {
     const onGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (completedSale) return;
+
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName.toLowerCase();
       const isFormField = !!target && (target.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select');
@@ -300,7 +245,7 @@ export default function RetailPage() {
 
     window.addEventListener('keydown', onGlobalKeyDown);
     return () => window.removeEventListener('keydown', onGlobalKeyDown);
-  }, [cart, processing, selectedCartItem]);
+  }, [cart, processing, selectedCartItem, completedSale]);
 
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -404,27 +349,6 @@ export default function RetailPage() {
                 />
               </div>
 
-              <div className="checkout-section">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={sendWhatsApp}
-                    onChange={(e) => setSendWhatsApp(e.target.checked)}
-                  />
-                  Do you want to send WhatsApp receipt to customer?
-                </label>
-                {sendWhatsApp && (
-                  <input
-                    className="form-input"
-                    type="text"
-                    placeholder="+94 76 180 9833"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    style={{ marginTop: '10px' }}
-                  />
-                )}
-              </div>
-
               <div className="cart-items">
                 {cart.map((item, index) => (
                   <div key={item.product._id} className={`cart-item ${selectedCartIndex === index ? 'keyboard-selected' : ''}`}>
@@ -452,19 +376,6 @@ export default function RetailPage() {
                     <button className="cart-remove" onClick={() => removeFromCart(item.product._id!)}>✕</button>
                   </div>
                 ))}
-              </div>
-
-              {/* Customer Name */}
-              <div className="checkout-section">
-                <label>Customer Name (optional)</label>
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="Walk-in Customer"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  style={{ marginTop: '6px' }}
-                />
               </div>
 
               {/* Discount */}
@@ -573,6 +484,142 @@ export default function RetailPage() {
           )}
         </div>
       </div>
+
+      {/* Receipt Modal */}
+      {completedSale && (
+        <div className="modal-overlay" onClick={() => setCompletedSale(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px', width: '94%' }}>
+            <div className="modal-header">
+              <h2>✅ Sale Completed</h2>
+              <button className="modal-close" onClick={() => setCompletedSale(null)}>✕</button>
+            </div>
+
+            <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+              {/* Receipt Preview */}
+              <div style={{
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '16px',
+              }}>
+                <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'var(--emerald-400)', letterSpacing: '1px' }}>
+                    SUNFLOWER AGRI
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Makandura Gonawila, Sri Lanka
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 600 }}>
+                    RETAIL RECEIPT
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '10px', marginBottom: '10px' }}>
+                  {[
+                    ['Invoice', completedSale.invoiceNo],
+                    ['Date', new Date(completedSale.date).toLocaleDateString('en-LK')],
+                    ['Time', new Date(completedSale.date).toLocaleTimeString('en-LK')],
+                    ['Customer', completedSale.customerName || 'Walk-in Customer'],
+                    ['Payment', completedSale.paymentMethod.toUpperCase()],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{label}:</span>
+                      <span style={{ fontWeight: 600 }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '10px', marginBottom: '10px' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', fontSize: '11px', textTransform: 'uppercase' }}>
+                    Items
+                  </div>
+                  {completedSale.items.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', gap: '8px' }}>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.productName}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>×{item.qty}</span>
+                      <span style={{ whiteSpace: 'nowrap' }}>LKR {item.total.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Subtotal:</span>
+                    <span>LKR {completedSale.subtotal.toFixed(2)}</span>
+                  </div>
+                  {completedSale.discount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Discount:</span>
+                      <span style={{ color: 'var(--danger)' }}>-LKR {completedSale.discount.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {(() => {
+                    const eff = Math.max(0, completedSale.total - (completedSale.subtotal - (completedSale.discount || 0)));
+                    return eff > 0.005 ? (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{completedSale.otherChargesDescription || 'Other Charges'}:</span>
+                        <span>+LKR {eff.toFixed(2)}</span>
+                      </div>
+                    ) : null;
+                  })()}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontWeight: 'bold',
+                    fontSize: '15px',
+                    color: 'var(--emerald-400)',
+                    marginTop: '8px',
+                    borderTop: '1px solid var(--border-color)',
+                    paddingTop: '8px',
+                  }}>
+                    <span>TOTAL:</span>
+                    <span>LKR {completedSale.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* WhatsApp Phone Input */}
+              <div>
+                <label style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  📱 Customer WhatsApp Number
+                </label>
+                <input
+                  className="form-input"
+                  type="text"
+                  placeholder="+94 76 180 9833"
+                  value={receiptPhone}
+                  onChange={(e) => setReceiptPhone(e.target.value)}
+                />
+                <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                  Enter number with country code to send via WhatsApp Web
+                </p>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ gap: '8px' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => generateReceipt(completedSale)}
+              >
+                🖨️ Print Receipt
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+                onClick={handleSendWhatsApp}
+              >
+                📱 Send via WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

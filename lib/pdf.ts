@@ -181,6 +181,76 @@ function addHeaderWithBranding(doc: jsPDF, w: number, y: number) {
   return y + 3;
 }
 
+export function generateReceiptText(sale: Sale): string {
+  const isWholesale = sale.saleType === 'wholesale';
+  const receiptTitle = isWholesale ? 'Wholesale Receipt' : 'Retail Receipt';
+  const receiptSubtitle = isWholesale ? 'Business Supply / Credit Sale' : 'Customer Purchase Receipt';
+  const footerLine = isWholesale ? 'Thank you for your wholesale business!' : 'Thank you for your purchase!';
+  const div = '─'.repeat(32);
+
+  const lines: string[] = [
+    COMPANY.name,
+    COMPANY.tagline,
+    COMPANY.address,
+    `Tel: ${COMPANY.phone1} | ${COMPANY.phone2}`,
+    COMPANY.country,
+    div,
+    receiptTitle,
+    receiptSubtitle,
+    div,
+    `Invoice:    ${sale.invoiceNo}`,
+    `Date:       ${new Date(sale.date).toLocaleDateString('en-LK')}`,
+    `Time:       ${new Date(sale.date).toLocaleTimeString('en-LK')}`,
+    `Customer:   ${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}`,
+    `Type:       ${sale.saleType.toUpperCase()}`,
+    `Payment:    ${sale.paymentMethod.toUpperCase()}`,
+    `Served By:  ${sale.cashierName || 'Cashier'}`,
+    div,
+    'Item                    Qty   Price      Total',
+    '─'.repeat(46),
+  ];
+
+  for (const item of sale.items) {
+    const name = item.productName.length > 22 ? `${item.productName.substring(0, 22)}..` : item.productName.padEnd(24);
+    lines.push(`${name}  ${String(item.qty).padStart(3)}   ${item.unitPrice.toFixed(2).padStart(8)}   ${item.total.toFixed(2).padStart(8)}`);
+  }
+
+  lines.push(div);
+  lines.push(`Subtotal:                          LKR ${sale.subtotal.toFixed(2)}`);
+
+  if (sale.discount && sale.discount > 0) {
+    lines.push(`Discount:                         -LKR ${sale.discount.toFixed(2)}`);
+  }
+
+  const effectiveOther = Math.max(0, sale.total - (sale.subtotal - (sale.discount || 0)));
+  if (effectiveOther > 0.005) {
+    const chargeLabel = (sale.otherChargesDescription?.trim() || 'Other Charges').padEnd(26);
+    lines.push(`${chargeLabel}         +LKR ${effectiveOther.toFixed(2)}`);
+  }
+
+  lines.push('═'.repeat(46));
+  lines.push(`*TOTAL:                            LKR ${sale.total.toFixed(2)}*`);
+  lines.push('═'.repeat(46));
+  lines.push('');
+  lines.push(footerLine);
+  lines.push('We appreciate your continued support.');
+  lines.push(div);
+  lines.push('Return Policy:');
+  lines.push('Items may be returned within 7 days with original');
+  lines.push('receipt. Perishable goods are non-refundable.');
+  lines.push(div);
+  lines.push('Find us online:');
+  if (COMPANY.website) lines.push(COMPANY.website);
+  if (COMPANY.facebook) lines.push(COMPANY.facebook);
+  if (COMPANY.instagram) lines.push(COMPANY.instagram);
+  if (isWholesale) {
+    lines.push(div);
+    lines.push('Wholesale rates applied.');
+  }
+
+  return lines.join('\n');
+}
+
 export async function generateReceipt(sale: Sale) {
   const doc = new jsPDF({ unit: 'mm', format: [80, 200], compress: true });
   const w = 80;
