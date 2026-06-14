@@ -518,8 +518,9 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
 <html><head><meta charset="utf-8"><style>
 @page{size:80mm auto;margin:0}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,Helvetica,sans-serif;font-size:10px;width:100%;max-width:80mm;padding:2mm 1.5mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.logo{max-width:36mm;display:block;margin:0 auto 3px}
+html{width:80mm}
+body{font-family:Arial,Helvetica,sans-serif;font-size:10px;width:80mm;padding:2mm 2mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.logo{width:44mm;display:block;margin:0 auto 3px}
 .c{text-align:center}
 .r{text-align:right}
 .contact{font-size:8.5px;color:#444;line-height:1.5}
@@ -550,7 +551,8 @@ hr.light{border:none;border-top:1px solid #aaa;margin:3px 0}
 .online-hd{font-weight:bold;font-size:8.5px;margin-bottom:1px}
 .watermark{font-size:7.5px;color:#bbb;margin-top:5px}
 @media print{
-  body{width:100%;max-width:80mm;padding:1mm 1.5mm}
+  html,body{width:80mm;margin:0}
+  body{padding:1mm 2mm}
 }
 </style></head><body>
 
