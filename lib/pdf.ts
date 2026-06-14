@@ -516,94 +516,100 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
-@page{size:80mm auto;margin:0}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,Helvetica,sans-serif;font-size:8pt;width:100%;padding:3mm 3mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+@page{size:80mm auto;margin:0mm}
+html,body{margin:0;padding:0;width:80mm}
+body{font-family:Arial,Helvetica,sans-serif;font-size:8pt;padding:2mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .c{text-align:center}
-.contact{font-size:7pt;color:#444;line-height:1.6}
-hr.solid{border:none;border-top:1.5pt solid #000;margin:3pt 0}
-hr.light{border:none;border-top:0.5pt solid #999;margin:2pt 0}
-.title{font-size:13pt;font-weight:bold;margin:3pt 0 1pt}
-.subtitle{font-size:7pt;color:#555;margin-bottom:3pt}
+.sm{font-size:7pt;color:#444;line-height:1.5}
+hr.s{border:none;border-top:1.5pt solid #000;margin:3pt 0}
+hr.l{border:none;border-top:0.5pt solid #999;margin:2pt 0}
+.ttl{font-size:12pt;font-weight:bold;margin:2pt 0 1pt}
+.sub{font-size:7pt;color:#555;margin-bottom:3pt}
 table{width:100%;border-collapse:collapse}
-table.info td{font-size:8pt;padding:1.5pt 0}
-table.info .lbl{font-weight:bold;width:40%}
-table.info .val{text-align:right}
-table.items th{font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;text-align:right}
-table.items th:first-child{text-align:left}
-table.items th:nth-child(2){text-align:center}
-table.items td{font-size:8pt;padding:2pt 0;border-bottom:0.5pt solid #ddd;text-align:right;vertical-align:top}
-table.items td:first-child{text-align:left}
-table.items td:nth-child(2){text-align:center}
-table.totals td{font-size:8pt;padding:1.5pt 0}
-table.totals .val{text-align:right}
-.total-row td{font-size:13pt;font-weight:bold;border-top:2pt solid #000;padding-top:3pt}
-.thankyou{font-size:10pt;font-weight:bold;margin:3pt 0 1pt}
-.small{font-size:7pt;color:#555;line-height:1.4}
-.bold-sm{font-weight:bold;font-size:7.5pt;margin-bottom:1pt}
-.watermark{font-size:6.5pt;color:#ccc;margin-top:5pt}
+.inf td{font-size:8pt;padding:1pt 0}
+.inf .lb{font-weight:bold;white-space:nowrap}
+.inf .vl{text-align:right}
+.itm th{font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000}
+.itm th:first-child{text-align:left}
+.itm th:nth-child(2){text-align:center}
+.itm th:nth-child(3),.itm th:nth-child(4){text-align:right}
+.itm td{font-size:8pt;padding:1.5pt 0;border-bottom:0.5pt solid #ddd;vertical-align:top}
+.itm td:first-child{text-align:left}
+.itm td:nth-child(2){text-align:center}
+.itm td:nth-child(3),.itm td:nth-child(4){text-align:right}
+.tot td{font-size:8pt;padding:1pt 0}
+.tot .vl{text-align:right}
+.tot .tr td{font-size:12pt;font-weight:bold;border-top:2pt solid #000;padding-top:3pt}
+.ty{font-size:10pt;font-weight:bold;margin:3pt 0 1pt}
+.bsm{font-weight:bold;font-size:7pt;margin-bottom:1pt}
+.wm{font-size:6pt;color:#ccc;margin-top:5pt}
 </style></head><body>
 <div class="c">
   ${logoHtml}
-  <div class="contact">Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
-  <div class="contact">${COMPANY.country}</div>
+  <div class="sm">Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
+  <div class="sm">${COMPANY.country}</div>
 </div>
-<hr class="solid"/>
+<hr class="s"/>
 <div class="c">
-  <div class="title">${receiptTitle}</div>
-  <div class="subtitle">${receiptSubtitle}</div>
+  <div class="ttl">${receiptTitle}</div>
+  <div class="sub">${receiptSubtitle}</div>
 </div>
-<table class="info">
-  <tr><td class="lbl">Invoice:</td><td class="val">${sale.invoiceNo}</td></tr>
-  <tr><td class="lbl">Date:</td><td class="val">${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
-  <tr><td class="lbl">Time:</td><td class="val">${new Date(sale.date).toLocaleTimeString('en-LK')}</td></tr>
-  <tr><td class="lbl">Customer:</td><td class="val">${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}</td></tr>
-  <tr><td class="lbl">Payment:</td><td class="val">${sale.paymentMethod.toUpperCase()}</td></tr>
-  <tr><td class="lbl">Served By:</td><td class="val">${sale.cashierName || 'Cashier'}</td></tr>
+<table class="inf">
+  <tr><td class="lb">Invoice:</td><td class="vl">${sale.invoiceNo}</td></tr>
+  <tr><td class="lb">Date:</td><td class="vl">${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
+  <tr><td class="lb">Time:</td><td class="vl">${new Date(sale.date).toLocaleTimeString('en-LK')}</td></tr>
+  <tr><td class="lb">Customer:</td><td class="vl">${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}</td></tr>
+  <tr><td class="lb">Payment:</td><td class="vl">${sale.paymentMethod.toUpperCase()}</td></tr>
+  <tr><td class="lb">Served By:</td><td class="vl">${sale.cashierName || 'Cashier'}</td></tr>
 </table>
-<hr class="solid"/>
-<table class="items">
-  <thead><tr><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th>Price</th><th>Total</th></tr></thead>
+<hr class="s"/>
+<table class="itm">
+  <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
   <tbody>${itemRows}</tbody>
 </table>
-<hr class="light"/>
-<table class="totals">
-  <tr><td>Subtotal:</td><td class="val">LKR ${sale.subtotal.toFixed(2)}</td></tr>
-  ${sale.discount > 0 ? `<tr><td>Discount:</td><td class="val">-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
-  ${effectiveOther > 0.005 ? `<tr><td>${sale.otherChargesDescription?.trim() || 'Other Charges'}:</td><td class="val">+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
-  <tr class="total-row"><td>TOTAL:</td><td class="val">LKR ${sale.total.toFixed(2)}</td></tr>
+<hr class="l"/>
+<table class="tot">
+  <tr><td>Subtotal:</td><td class="vl">LKR ${sale.subtotal.toFixed(2)}</td></tr>
+  ${sale.discount > 0 ? `<tr><td>Discount:</td><td class="vl">-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
+  ${effectiveOther > 0.005 ? `<tr><td>${sale.otherChargesDescription?.trim() || 'Other Charges'}:</td><td class="vl">+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
+  <tr class="tr"><td>TOTAL:</td><td class="vl">LKR ${sale.total.toFixed(2)}</td></tr>
 </table>
-<hr class="solid"/>
+<hr class="s"/>
 <div class="c">
-  <div class="thankyou">${footerLine}</div>
-  <div class="small">We appreciate your continued support.</div>
+  <div class="ty">${footerLine}</div>
+  <div class="sm">We appreciate your continued support.</div>
 </div>
-<hr class="light"/>
+<hr class="l"/>
 <div class="c">
-  <div class="bold-sm">Return Policy:</div>
-  <div class="small">Items may be returned within 7 days with original receipt.<br/>Perishable goods are non-refundable.</div>
+  <div class="bsm">Return Policy:</div>
+  <div class="sm">Items may be returned within 7 days with original receipt. Perishable goods are non-refundable.</div>
 </div>
-<hr class="light"/>
+<hr class="l"/>
 <div class="c">
-  <div class="bold-sm">Find us online:</div>
-  ${COMPANY.website ? `<div class="small">${COMPANY.website}</div>` : ''}
-  ${COMPANY.facebook ? `<div class="small">${COMPANY.facebook}</div>` : ''}
-  ${COMPANY.instagram ? `<div class="small">${COMPANY.instagram}</div>` : ''}
+  <div class="bsm">Find us online:</div>
+  ${COMPANY.website ? `<div class="sm">${COMPANY.website}</div>` : ''}
+  ${COMPANY.facebook ? `<div class="sm">${COMPANY.facebook}</div>` : ''}
+  ${COMPANY.instagram ? `<div class="sm">${COMPANY.instagram}</div>` : ''}
 </div>
-<div class="c watermark">${COMPANY.name}</div>
+<div class="c wm">${COMPANY.name}</div>
 </body></html>`;
 
-  // Open in a new tiny window — Chrome respects @page CSS here, unlike iframes
-  const pw = window.open('', '_blank', 'width=302,height=600,left=-1000,top=-1000');
-  if (!pw) return;
-  pw.document.open();
-  pw.document.write(html);
-  pw.document.close();
-  pw.addEventListener('load', () => {
-    pw.focus();
-    pw.print();
-    setTimeout(() => pw.close(), 2000);
-  });
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:302px;height:600px;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+  const doc2 = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc2) { iframe.remove(); return; }
+  doc2.open();
+  doc2.write(html);
+  doc2.close();
+  setTimeout(() => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } finally {
+      setTimeout(() => iframe.remove(), 3000);
+    }
+  }, 500);
 }
 
 export async function generateReport(data: {
