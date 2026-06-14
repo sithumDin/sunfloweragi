@@ -485,6 +485,21 @@ export async function generateReceipt(sale: Sale) {
 }
 
 export async function printReceiptDirect(sale: Sale): Promise<void> {
+  // ── Primary: QZ Tray → zero-dialog direct thermal print ─────────────────
+  try {
+    const { printWithQZ } = await import('./qz-print');
+    await printWithQZ(sale);
+    return;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Only fall back silently if QZ simply isn't running
+    if (!msg.includes('Unable to establish connection') && !msg.includes('QZ Tray')) {
+      throw err; // real error (e.g. printer offline) — surface it
+    }
+    console.warn('[QZ] Not available, falling back to browser print:', msg);
+  }
+
+  // ── Fallback: HTML iframe + window.print() ───────────────────────────────
   const isWholesale = sale.saleType === 'wholesale';
   const receiptTitle = isWholesale ? 'Wholesale Receipt' : 'Retail Receipt';
   const receiptSubtitle = isWholesale ? 'Business Supply / Credit Sale' : 'Customer Purchase Receipt';
