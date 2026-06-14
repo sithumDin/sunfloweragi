@@ -1,6 +1,9 @@
 import jsPDF from 'jspdf';
 import { Sale } from './types';
 
+// Cache compressed logo so we only fetch+compress once per session
+let _logoCache: string | null | undefined = undefined;
+
 // ─── IMAGE COMPRESSION HELPER ─────────────────────────────────────────────
 async function compressImage(base64String: string, maxWidth: number = 500, quality: number = 0.7): Promise<string> {
   return new Promise((resolve) => {
@@ -490,27 +493,30 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
   const receiptSubtitle = isWholesale ? 'Business Supply / Credit Sale' : 'Customer Purchase Receipt';
   const footerLine = isWholesale ? 'Thank you for your wholesale business!' : 'Thank you for your purchase!';
 
-  let logoHtml = '';
-  try {
-    // Try /uploads/logo.PNG first (direct static file, faster)
-    const sources = ['/uploads/logo.PNG', '/uploads/logo.png', '/api/logo'];
-    for (const src of sources) {
-      const res = await fetch(src);
-      if (!res.ok) continue;
-      const ct = res.headers.get('content-type') || '';
-      if (!ct.includes('image/')) continue;
-      const blob = await res.blob();
-      const raw = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-      // Compress to max 200px wide, 60% quality — keeps data URL small
-      const dataUrl = await compressImage(raw, 200, 0.6);
-      logoHtml = `<img src="${dataUrl}" style="width:40mm;display:block;margin:0 auto 4px" />`;
-      break;
-    }
-  } catch { /* no logo — receipt still prints without it */ }
+  // Fetch logo once per session; reuse cached result on subsequent prints
+  if (_logoCache === undefined) {
+    _logoCache = null;
+    try {
+      const sources = ['/uploads/logo.PNG', '/uploads/logo.png', '/api/logo'];
+      for (const src of sources) {
+        const res = await fetch(src);
+        if (!res.ok) continue;
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('image/')) continue;
+        const blob = await res.blob();
+        const raw = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+        _logoCache = await compressImage(raw, 200, 0.6);
+        break;
+      }
+    } catch { /* no logo */ }
+  }
+  const logoHtml = _logoCache
+    ? `<img src="${_logoCache}" style="width:40mm;display:block;margin:0 auto 4px" />`
+    : '';
 
   const effectiveOther = Math.max(0, sale.total - (sale.subtotal - (sale.discount || 0)));
 
@@ -620,11 +626,17 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
   }
   visStyle.textContent = `
     @media print {
-      body > *:not(#__rpt__) { visibility: hidden !important; }
-      #__rpt__ { visibility: visible !important; position: fixed; top: 0; left: 0; width: 100%; }
-      #__rpt__ * { visibility: visible !important; }
+      html, body {
+        min-height: 0 !important;
+        height: auto !important;
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      body > *:not(#__rpt__) { display: none !important; }
+      #__rpt__ { display: block !important; }
     }
-    @media screen { #__rpt__ { display: none; } }
+    @media screen { #__rpt__ { display: none !important; } }
   `;
 
   document.body.appendChild(rpt);
