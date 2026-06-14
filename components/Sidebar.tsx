@@ -128,24 +128,7 @@ export default function Sidebar() {
       return;
     }
 
-    const openFullscreen = () => {
-      try {
-        popup.focus();
-        const docEl = popup.document?.documentElement as HTMLElement | undefined;
-        if (docEl?.requestFullscreen) {
-          void docEl.requestFullscreen().catch(() => {});
-        }
-      } catch {
-        // Ignore cross-window timing issues.
-      }
-    };
-
-    if (popup.document?.readyState === 'complete') {
-      openFullscreen();
-    } else {
-      popup.addEventListener('load', openFullscreen, { once: true });
-    }
-
+    popup.focus();
     setStartingLockdown(false);
   };
 
@@ -168,6 +151,10 @@ export default function Sidebar() {
 
     allowExitRef.current = true;
 
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {});
+    }
+
     if (window.opener && !window.opener.closed) {
       window.close();
       return;
@@ -178,6 +165,27 @@ export default function Sidebar() {
     safeUrl.searchParams.delete('allowedDomain');
     window.location.replace(safeUrl.toString());
   };
+
+  // Enter fullscreen when this window loads in lockdown mode
+  useEffect(() => {
+    if (!isLockdownMode || !mounted) return;
+    const el = document.documentElement;
+    if (el.requestFullscreen && !document.fullscreenElement) {
+      el.requestFullscreen().catch(() => {});
+    }
+  }, [isLockdownMode, mounted]);
+
+  // Re-enter fullscreen if user accidentally exits it while in lockdown
+  useEffect(() => {
+    if (!isLockdownMode) return;
+    const onFsChange = () => {
+      if (!document.fullscreenElement && !allowExitRef.current) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, [isLockdownMode]);
 
   useEffect(() => {
     if (!isLockdownMode) return;
@@ -358,10 +366,13 @@ export default function Sidebar() {
         <nav className="sidebar-nav">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
+            const href = isLockdownMode
+              ? `${item.href}?lockdown=1&allowedDomain=${encodeURIComponent(allowedDomain)}`
+              : item.href;
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={href}
                 className={`nav-link ${isActive ? 'active' : ''}`}
                 onClick={() => setOpen(false)}
               >

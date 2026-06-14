@@ -181,6 +181,76 @@ function addHeaderWithBranding(doc: jsPDF, w: number, y: number) {
   return y + 3;
 }
 
+export function generateReceiptText(sale: Sale): string {
+  const isWholesale = sale.saleType === 'wholesale';
+  const receiptTitle = isWholesale ? 'Wholesale Receipt' : 'Retail Receipt';
+  const receiptSubtitle = isWholesale ? 'Business Supply / Credit Sale' : 'Customer Purchase Receipt';
+  const footerLine = isWholesale ? 'Thank you for your wholesale business!' : 'Thank you for your purchase!';
+  const div = '─'.repeat(32);
+
+  const lines: string[] = [
+    COMPANY.name,
+    COMPANY.tagline,
+    COMPANY.address,
+    `Tel: ${COMPANY.phone1} | ${COMPANY.phone2}`,
+    COMPANY.country,
+    div,
+    receiptTitle,
+    receiptSubtitle,
+    div,
+    `Invoice:    ${sale.invoiceNo}`,
+    `Date:       ${new Date(sale.date).toLocaleDateString('en-LK')}`,
+    `Time:       ${new Date(sale.date).toLocaleTimeString('en-LK')}`,
+    `Customer:   ${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}`,
+    `Type:       ${sale.saleType.toUpperCase()}`,
+    `Payment:    ${sale.paymentMethod.toUpperCase()}`,
+    `Served By:  ${sale.cashierName || 'Cashier'}`,
+    div,
+    'Item                    Qty   Price      Total',
+    '─'.repeat(46),
+  ];
+
+  for (const item of sale.items) {
+    const name = item.productName.length > 22 ? `${item.productName.substring(0, 22)}..` : item.productName.padEnd(24);
+    lines.push(`${name}  ${String(item.qty).padStart(3)}   ${item.unitPrice.toFixed(2).padStart(8)}   ${item.total.toFixed(2).padStart(8)}`);
+  }
+
+  lines.push(div);
+  lines.push(`Subtotal:                          LKR ${sale.subtotal.toFixed(2)}`);
+
+  if (sale.discount && sale.discount > 0) {
+    lines.push(`Discount:                         -LKR ${sale.discount.toFixed(2)}`);
+  }
+
+  const effectiveOther = Math.max(0, sale.total - (sale.subtotal - (sale.discount || 0)));
+  if (effectiveOther > 0.005) {
+    const chargeLabel = (sale.otherChargesDescription?.trim() || 'Other Charges').padEnd(26);
+    lines.push(`${chargeLabel}         +LKR ${effectiveOther.toFixed(2)}`);
+  }
+
+  lines.push('═'.repeat(46));
+  lines.push(`*TOTAL:                            LKR ${sale.total.toFixed(2)}*`);
+  lines.push('═'.repeat(46));
+  lines.push('');
+  lines.push(footerLine);
+  lines.push('We appreciate your continued support.');
+  lines.push(div);
+  lines.push('Return Policy:');
+  lines.push('Items may be returned within 7 days with original');
+  lines.push('receipt. Perishable goods are non-refundable.');
+  lines.push(div);
+  lines.push('Find us online:');
+  if (COMPANY.website) lines.push(COMPANY.website);
+  if (COMPANY.facebook) lines.push(COMPANY.facebook);
+  if (COMPANY.instagram) lines.push(COMPANY.instagram);
+  if (isWholesale) {
+    lines.push(div);
+    lines.push('Wholesale rates applied.');
+  }
+
+  return lines.join('\n');
+}
+
 export async function generateReceipt(sale: Sale) {
   const doc = new jsPDF({ unit: 'mm', format: [80, 200], compress: true });
   const w = 80;
@@ -412,6 +482,124 @@ export async function generateReceipt(sale: Sale) {
   }
 
   openPdfPreview(doc, `receipt-${sale.invoiceNo}.pdf`);
+}
+
+export async function printReceiptDirect(sale: Sale): Promise<void> {
+  const isWholesale = sale.saleType === 'wholesale';
+  const receiptTitle = isWholesale ? 'WHOLESALE RECEIPT' : 'RETAIL RECEIPT';
+  const footerLine = isWholesale ? 'Thank you for your wholesale business!' : 'Thank you for your purchase!';
+
+  let logoHtml = '';
+  try {
+    const res = await fetch('/api/logo');
+    if (res.ok && res.headers.get('content-type')?.includes('image/')) {
+      const blob = await res.blob();
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+      logoHtml = `<img src="${dataUrl}" class="logo" />`;
+    }
+  } catch { /* no logo */ }
+
+  const div = '─'.repeat(32);
+  const items = sale.items.map(item => {
+    const name = item.productName.length > 20 ? item.productName.substring(0, 20) + '..' : item.productName;
+    return `<tr>
+      <td>${name}</td>
+      <td style="text-align:center">${item.qty}</td>
+      <td style="text-align:right">${item.unitPrice.toFixed(2)}</td>
+      <td style="text-align:right">${item.total.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const effectiveOther = Math.max(0, sale.total - (sale.subtotal - (sale.discount || 0)));
+
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Courier New',Courier,monospace;font-size:11px;width:80mm;padding:3mm 4mm;color:#000}
+.center{text-align:center}
+.logo{max-width:55mm;display:block;margin:0 auto 3px}
+.company-name{font-size:14px;font-weight:bold}
+.tagline{font-size:9px;color:#555}
+.div{border-top:1px dashed #000;margin:4px 0}
+.title{font-size:12px;font-weight:bold;margin:3px 0}
+table{width:100%;border-collapse:collapse;font-size:10px}
+th{border-bottom:1px solid #000;padding:2px 0;text-align:left}
+th:not(:first-child){text-align:center}
+th:last-child,th:nth-child(3){text-align:right}
+td{padding:2px 0;vertical-align:top}
+td:not(:first-child){text-align:center}
+td:last-child,td:nth-child(3){text-align:right}
+.totals{width:100%;font-size:10px;margin-top:3px}
+.totals td{padding:1px 0}
+.totals .total-row td{font-size:12px;font-weight:bold;border-top:2px solid #000;padding-top:3px}
+.footer{text-align:center;font-size:9px;color:#555;margin-top:4px}
+.bold{font-weight:bold}
+@media print{
+  body{width:80mm;padding:2mm}
+  @page{size:80mm auto;margin:0}
+}
+</style></head><body>
+<div class="center">
+  ${logoHtml}
+  <div class="company-name">${COMPANY.name}</div>
+  <div class="tagline">${COMPANY.tagline}</div>
+  <div class="tagline">${COMPANY.address}</div>
+  <div class="tagline">Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
+</div>
+<div class="div"></div>
+<div class="center title">${receiptTitle}</div>
+<div class="div"></div>
+<table class="totals">
+  <tr><td>Invoice</td><td style="text-align:right">${sale.invoiceNo}</td></tr>
+  <tr><td>Date</td><td style="text-align:right">${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
+  <tr><td>Time</td><td style="text-align:right">${new Date(sale.date).toLocaleTimeString('en-LK')}</td></tr>
+  <tr><td>Customer</td><td style="text-align:right">${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}</td></tr>
+  <tr><td>Payment</td><td style="text-align:right">${sale.paymentMethod.toUpperCase()}</td></tr>
+  <tr><td>Served By</td><td style="text-align:right">${sale.cashierName || 'Cashier'}</td></tr>
+</table>
+<div class="div"></div>
+<table>
+  <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+  <tbody>${items}</tbody>
+</table>
+<div class="div"></div>
+<table class="totals">
+  <tr><td>Subtotal</td><td style="text-align:right">LKR ${sale.subtotal.toFixed(2)}</td></tr>
+  ${sale.discount && sale.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
+  ${effectiveOther > 0.005 ? `<tr><td>${sale.otherChargesDescription?.trim() || 'Other Charges'}</td><td style="text-align:right">+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
+  <tr class="total-row"><td class="bold">TOTAL</td><td style="text-align:right" class="bold">LKR ${sale.total.toFixed(2)}</td></tr>
+</table>
+<div class="div"></div>
+<div class="footer">
+  <div>${footerLine}</div>
+  <div>We appreciate your continued support.</div>
+  <div style="margin-top:4px">Return Policy: Items may be returned within 7 days with receipt.</div>
+</div>
+</body></html>`;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:80mm;border:none;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  const doc2 = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc2) { iframe.remove(); return; }
+
+  doc2.open();
+  doc2.write(html);
+  doc2.close();
+
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    } finally {
+      setTimeout(() => iframe.remove(), 3000);
+    }
+  };
 }
 
 export async function generateReport(data: {

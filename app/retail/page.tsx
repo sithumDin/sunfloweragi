@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Product, CartItem } from '@/lib/types';
-import { generateReceipt } from '@/lib/pdf';
+import { printReceiptDirect } from '@/lib/pdf';
 
 function formatLKR(amount: number) {
   return `LKR ${amount.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -11,6 +11,7 @@ function formatLKR(amount: number) {
 function getRetailPrice(product: Product) {
   return product.retailPrice ?? product.sellingPrice ?? 0;
 }
+
 
 export default function RetailPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -25,8 +26,6 @@ export default function RetailPage() {
   const [otherCharges, setOtherCharges] = useState('');
   const [otherChargesDescription, setOtherChargesDescription] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [processing, setProcessing] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -97,23 +96,9 @@ export default function RetailPage() {
   const total = subtotal - discountAmount + otherChargesAmount;
   const totalCost = cart.reduce((sum, c) => sum + c.product.costPrice * c.qty, 0);
   const profit = total - totalCost - otherChargesAmount;
-  const whatsappPhonePattern = /^\+94\s\d{2}\s\d{3}\s\d{4}$/;
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
-
-    if (sendWhatsApp) {
-      if (!customerPhone.trim()) {
-        alert('Please enter customer WhatsApp number. Format: +94 76 180 9833');
-        return;
-      }
-
-      if (!whatsappPhonePattern.test(customerPhone.trim())) {
-        alert('Invalid number format. Please use: +94 76 180 9833');
-        return;
-      }
-    }
-
     setProcessing(true);
 
     const saleData = {
@@ -146,73 +131,18 @@ export default function RetailPage() {
 
       if (res.ok) {
         const sale = await res.json();
-        await generateReceipt(sale);
-        
-        if (sendWhatsApp) {
-          const text = [
-            `Govi Sewana Receipt`,
-            `Invoice: ${sale.invoiceNo}`,
-            `Customer: ${sale.customerName || 'Walk-in Customer'}`,
-            `Total: ${formatLKR(sale.total)}`,
-            `Payment: ${sale.paymentMethod}`,
-            `Date: ${new Date(sale.date).toLocaleString('en-LK')}`,
-            `Thank you for your purchase!`,
-          ].join('\n');
 
-          try {
-            const waRes = await fetch('/api/whatsapp/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ to: customerPhone.trim(), text }),
-            });
-
-            if (waRes.ok) {
-              alert('Sale completed. WhatsApp message sent successfully.');
-            } else {
-              const waData = await waRes.json().catch(() => ({ error: 'Failed to send WhatsApp' }));
-              const errorText = String(waData.error || 'Unknown error');
-              const lowerError = errorText.toLowerCase();
-
-              if (lowerError.includes('not configured')) {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID, then restart the server.`);
-              } else if (
-                lowerError.includes('session has expired') ||
-                lowerError.includes('error validating access token') ||
-                lowerError.includes('invalid oauth access token')
-              ) {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please regenerate WHATSAPP_ACCESS_TOKEN in Meta and restart the server.`);
-              } else if (
-                lowerError.includes('invalid phone') ||
-                lowerError.includes('invalid wa id') ||
-                lowerError.includes('phone number')
-              ) {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please ensure the phone number is correct with country code (+94).`);
-              } else {
-                alert(`Sale completed. WhatsApp failed: ${errorText}. Please check WhatsApp API credentials and try again.`);
-              }
-            }
-          } catch (error) {
-            console.error('WhatsApp send error:', error);
-            alert('Sale completed. WhatsApp could not be sent due to a network error.');
-          }
-        } else {
-          alert('Sale completed.');
-        }
-
-
-        // Reset
         setCart([]);
         setDiscount('');
         setOtherCharges('');
         setOtherChargesDescription('');
         setCustomerName('');
-        setCustomerPhone('');
-        setSendWhatsApp(false);
         setPaymentMethod('cash');
 
-        // Refresh products
         const updatedProducts = await fetch('/api/products').then((r) => r.json());
         setProducts(updatedProducts);
+
+        await printReceiptDirect(sale);
       }
     } catch (error) {
       console.error('Checkout failed:', error);
@@ -404,27 +334,6 @@ export default function RetailPage() {
                 />
               </div>
 
-              <div className="checkout-section">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="checkbox"
-                    checked={sendWhatsApp}
-                    onChange={(e) => setSendWhatsApp(e.target.checked)}
-                  />
-                  Do you want to send WhatsApp receipt to customer?
-                </label>
-                {sendWhatsApp && (
-                  <input
-                    className="form-input"
-                    type="text"
-                    placeholder="+94 76 180 9833"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    style={{ marginTop: '10px' }}
-                  />
-                )}
-              </div>
-
               <div className="cart-items">
                 {cart.map((item, index) => (
                   <div key={item.product._id} className={`cart-item ${selectedCartIndex === index ? 'keyboard-selected' : ''}`}>
@@ -452,19 +361,6 @@ export default function RetailPage() {
                     <button className="cart-remove" onClick={() => removeFromCart(item.product._id!)}>✕</button>
                   </div>
                 ))}
-              </div>
-
-              {/* Customer Name */}
-              <div className="checkout-section">
-                <label>Customer Name (optional)</label>
-                <input
-                  className="form-input"
-                  type="text"
-                  placeholder="Walk-in Customer"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  style={{ marginTop: '6px' }}
-                />
               </div>
 
               {/* Discount */}
@@ -573,6 +469,7 @@ export default function RetailPage() {
           )}
         </div>
       </div>
+
     </div>
   );
 }
