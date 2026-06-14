@@ -500,7 +500,7 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
         reader.onloadend = () => resolve(reader.result as string);
         reader.readAsDataURL(blob);
       });
-      logoHtml = `<img src="${dataUrl}" class="logo" />`;
+      logoHtml = `<img src="${dataUrl}" style="width:44mm;display:block;margin:0 auto 3px" />`;
     }
   } catch { /* no logo */ }
 
@@ -518,57 +518,41 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
 <html><head><meta charset="utf-8"><style>
 @page{size:80mm auto;margin:0}
 *{margin:0;padding:0;box-sizing:border-box}
-html{width:80mm}
-body{font-family:Arial,Helvetica,sans-serif;font-size:10px;width:80mm;padding:2mm 2mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.logo{width:44mm;display:block;margin:0 auto 3px}
+body{font-family:Arial,Helvetica,sans-serif;font-size:8pt;width:100%;padding:3mm 3mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .c{text-align:center}
-.r{text-align:right}
-.contact{font-size:8.5px;color:#444;line-height:1.5}
-hr.solid{border:none;border-top:1.5px solid #000;margin:4px 0}
-hr.light{border:none;border-top:1px solid #aaa;margin:3px 0}
-.title{font-size:13px;font-weight:bold;margin:3px 0 1px}
-.subtitle{font-size:8.5px;color:#555;margin-bottom:4px}
-.info{width:100%;border-collapse:collapse;font-size:9.5px}
-.info td{padding:1.5px 0}
-.info .lbl{font-weight:bold}
-.info .val{text-align:right}
-.items{width:100%;border-collapse:collapse;font-size:9.5px;margin:2px 0}
-.items th{font-weight:bold;padding:2px 0;border-bottom:1.5px solid #000}
-.items th:first-child{text-align:left}
-.items th.td-c{text-align:center}
-.items th.td-r{text-align:right}
-.td-name{text-align:left;padding:2px 0}
-.td-c{text-align:center;padding:2px 0}
-.td-r{text-align:right;padding:2px 0}
-.totals{width:100%;border-collapse:collapse;font-size:9.5px}
-.totals td{padding:1.5px 0}
-.totals .val{text-align:right}
-.total-row td{font-size:13px;font-weight:bold;border-top:2px solid #000;padding-top:3px}
-.thankyou{font-size:11px;font-weight:bold;margin:3px 0 1px}
-.support{font-size:8.5px;color:#555}
-.policy-hd{font-weight:bold;font-size:8.5px;margin-bottom:1px}
-.policy-txt{font-size:8px;color:#555;line-height:1.4}
-.online-hd{font-weight:bold;font-size:8.5px;margin-bottom:1px}
-.watermark{font-size:7.5px;color:#bbb;margin-top:5px}
-@media print{
-  html,body{width:80mm;margin:0}
-  body{padding:1mm 2mm}
-}
+.contact{font-size:7pt;color:#444;line-height:1.6}
+hr.solid{border:none;border-top:1.5pt solid #000;margin:3pt 0}
+hr.light{border:none;border-top:0.5pt solid #999;margin:2pt 0}
+.title{font-size:13pt;font-weight:bold;margin:3pt 0 1pt}
+.subtitle{font-size:7pt;color:#555;margin-bottom:3pt}
+table{width:100%;border-collapse:collapse}
+table.info td{font-size:8pt;padding:1.5pt 0}
+table.info .lbl{font-weight:bold;width:40%}
+table.info .val{text-align:right}
+table.items th{font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;text-align:right}
+table.items th:first-child{text-align:left}
+table.items th:nth-child(2){text-align:center}
+table.items td{font-size:8pt;padding:2pt 0;border-bottom:0.5pt solid #ddd;text-align:right;vertical-align:top}
+table.items td:first-child{text-align:left}
+table.items td:nth-child(2){text-align:center}
+table.totals td{font-size:8pt;padding:1.5pt 0}
+table.totals .val{text-align:right}
+.total-row td{font-size:13pt;font-weight:bold;border-top:2pt solid #000;padding-top:3pt}
+.thankyou{font-size:10pt;font-weight:bold;margin:3pt 0 1pt}
+.small{font-size:7pt;color:#555;line-height:1.4}
+.bold-sm{font-weight:bold;font-size:7.5pt;margin-bottom:1pt}
+.watermark{font-size:6.5pt;color:#ccc;margin-top:5pt}
 </style></head><body>
-
 <div class="c">
   ${logoHtml}
   <div class="contact">Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
   <div class="contact">${COMPANY.country}</div>
 </div>
-
 <hr class="solid"/>
-
 <div class="c">
   <div class="title">${receiptTitle}</div>
   <div class="subtitle">${receiptSubtitle}</div>
 </div>
-
 <table class="info">
   <tr><td class="lbl">Invoice:</td><td class="val">${sale.invoiceNo}</td></tr>
   <tr><td class="lbl">Date:</td><td class="val">${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
@@ -577,74 +561,49 @@ hr.light{border:none;border-top:1px solid #aaa;margin:3px 0}
   <tr><td class="lbl">Payment:</td><td class="val">${sale.paymentMethod.toUpperCase()}</td></tr>
   <tr><td class="lbl">Served By:</td><td class="val">${sale.cashierName || 'Cashier'}</td></tr>
 </table>
-
 <hr class="solid"/>
-
 <table class="items">
-  <thead><tr>
-    <th style="text-align:left">Item</th>
-    <th class="td-c">Qty</th>
-    <th class="td-r">Price</th>
-    <th class="td-r">Total</th>
-  </tr></thead>
+  <thead><tr><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th>Price</th><th>Total</th></tr></thead>
   <tbody>${itemRows}</tbody>
 </table>
-
 <hr class="light"/>
-
 <table class="totals">
   <tr><td>Subtotal:</td><td class="val">LKR ${sale.subtotal.toFixed(2)}</td></tr>
   ${sale.discount > 0 ? `<tr><td>Discount:</td><td class="val">-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
   ${effectiveOther > 0.005 ? `<tr><td>${sale.otherChargesDescription?.trim() || 'Other Charges'}:</td><td class="val">+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
   <tr class="total-row"><td>TOTAL:</td><td class="val">LKR ${sale.total.toFixed(2)}</td></tr>
 </table>
-
 <hr class="solid"/>
-
 <div class="c">
   <div class="thankyou">${footerLine}</div>
-  <div class="support">We appreciate your continued support.</div>
+  <div class="small">We appreciate your continued support.</div>
 </div>
-
 <hr class="light"/>
-
 <div class="c">
-  <div class="policy-hd">Return Policy:</div>
-  <div class="policy-txt">Items may be returned within 7 days with<br/>original receipt. Perishable goods are non-refundable.</div>
+  <div class="bold-sm">Return Policy:</div>
+  <div class="small">Items may be returned within 7 days with original receipt.<br/>Perishable goods are non-refundable.</div>
 </div>
-
 <hr class="light"/>
-
 <div class="c">
-  <div class="online-hd">Find us online:</div>
-  ${COMPANY.website ? `<div class="policy-txt">${COMPANY.website}</div>` : ''}
-  ${COMPANY.facebook ? `<div class="policy-txt">${COMPANY.facebook}</div>` : ''}
-  ${COMPANY.instagram ? `<div class="policy-txt">${COMPANY.instagram}</div>` : ''}
+  <div class="bold-sm">Find us online:</div>
+  ${COMPANY.website ? `<div class="small">${COMPANY.website}</div>` : ''}
+  ${COMPANY.facebook ? `<div class="small">${COMPANY.facebook}</div>` : ''}
+  ${COMPANY.instagram ? `<div class="small">${COMPANY.instagram}</div>` : ''}
 </div>
-
 <div class="c watermark">${COMPANY.name}</div>
-
 </body></html>`;
 
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:80mm;height:1px;border:none;visibility:hidden;';
-  document.body.appendChild(iframe);
-
-  const doc2 = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc2) { iframe.remove(); return; }
-
-  doc2.open();
-  doc2.write(html);
-  doc2.close();
-
-  iframe.onload = () => {
-    try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    } finally {
-      setTimeout(() => iframe.remove(), 3000);
-    }
-  };
+  // Open in a new tiny window — Chrome respects @page CSS here, unlike iframes
+  const pw = window.open('', '_blank', 'width=302,height=600,left=-1000,top=-1000');
+  if (!pw) return;
+  pw.document.open();
+  pw.document.write(html);
+  pw.document.close();
+  pw.addEventListener('load', () => {
+    pw.focus();
+    pw.print();
+    setTimeout(() => pw.close(), 2000);
+  });
 }
 
 export async function generateReport(data: {
