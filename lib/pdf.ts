@@ -517,7 +517,7 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,Helvetica,sans-serif;font-size:10px;width:76mm;padding:3mm 2mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Arial,Helvetica,sans-serif;font-size:9px;width:54mm;padding:2mm 1mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .center{text-align:center}
 .right{text-align:right}
 .logo{max-width:44mm;display:block;margin:0 auto 4px}
@@ -547,8 +547,8 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10px;width:76mm;padding:3m
 .online-title{color:#28783c;font-weight:bold;font-size:9px}
 .watermark{color:#ccc;font-size:8px;margin-top:6px}
 @media print{
-  body{width:80mm;padding:2mm 1mm}
-  @page{size:80mm auto;margin:0}
+  body{width:58mm;padding:1mm}
+  @page{size:58mm auto;margin:0}
 }
 </style></head><body>
 <div class="center">
@@ -607,7 +607,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10px;width:76mm;padding:3m
 </body></html>`;
 
   const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:80mm;border:none;visibility:hidden;';
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:58mm;border:none;visibility:hidden;';
   document.body.appendChild(iframe);
 
   const doc2 = iframe.contentDocument || iframe.contentWindow?.document;
