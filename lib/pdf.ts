@@ -1,9 +1,6 @@
 import jsPDF from 'jspdf';
 import { Sale } from './types';
 
-// Cache compressed logo so we only fetch+compress once per session
-let _logoCache: string | null | undefined = undefined;
-
 // ─── IMAGE COMPRESSION HELPER ─────────────────────────────────────────────
 async function compressImage(base64String: string, maxWidth: number = 500, quality: number = 0.7): Promise<string> {
   return new Promise((resolve) => {
@@ -487,58 +484,16 @@ export async function generateReceipt(sale: Sale) {
   openPdfPreview(doc, `receipt-${sale.invoiceNo}.pdf`);
 }
 
-export async function printReceiptDirect(sale: Sale): Promise<void> {
+export function printReceiptDirect(sale: Sale, printWin: Window | null): void {
   const isWholesale = sale.saleType === 'wholesale';
   const receiptTitle = isWholesale ? 'Wholesale Receipt' : 'Retail Receipt';
   const receiptSubtitle = isWholesale ? 'Business Supply / Credit Sale' : 'Customer Purchase Receipt';
   const footerLine = isWholesale ? 'Thank you for your wholesale business!' : 'Thank you for your purchase!';
 
-  // Fetch logo once per session; reuse cached result on subsequent prints
-  if (_logoCache === undefined) {
-    _logoCache = null;
-    try {
-      const sources = ['/uploads/logo.PNG', '/uploads/logo.png', '/api/logo'];
-      for (const src of sources) {
-        const res = await fetch(src);
-        if (!res.ok) continue;
-        const ct = res.headers.get('content-type') || '';
-        if (!ct.includes('image/')) continue;
-        const blob = await res.blob();
-        const raw = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-        _logoCache = await compressImage(raw, 200, 0.6);
-        break;
-      }
-    } catch { /* no logo */ }
-  }
-  const logoHtml = _logoCache
-    ? `<img src="${_logoCache}" style="width:40mm;display:block;margin:0 auto 4px" />`
-    : '';
+  if (!printWin || printWin.closed) return;
 
   const effectiveOther = Math.max(0, sale.total - (sale.subtotal - (sale.discount || 0)));
 
-  const itemRows = sale.items.map(item => `
-    <tr>
-      <td class="td-name">${item.productName}</td>
-      <td class="td-c">${item.qty}</td>
-      <td class="td-r">${item.unitPrice.toFixed(2)}</td>
-      <td class="td-r">${item.total.toFixed(2)}</td>
-    </tr>`).join('');
-
-  // ── Inject @page into the MAIN document so window.print() uses 80mm ────────
-  // Chrome ignores @page inside iframes — must be in the top-level document.
-  let pgStyle = document.getElementById('__rpt_page__') as HTMLStyleElement | null;
-  if (!pgStyle) {
-    pgStyle = document.createElement('style');
-    pgStyle.id = '__rpt_page__';
-    document.head.appendChild(pgStyle);
-  }
-  pgStyle.textContent = '@page{size:80mm auto;margin:0}';
-
-  // ── Build the receipt node ────────────────────────────────────────────────
   const s = (css: string) => `style="${css}"`;
   const C  = 'text-align:center';
   const R  = 'text-align:right';
@@ -555,99 +510,92 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
   const HR  = (w: string) => `<hr ${s(`border:none;border-top:${w} solid #000;margin:3pt 0`)}/>`;
   const HRl = `<hr ${s('border:none;border-top:0.5pt solid #aaa;margin:2pt 0')}/>`;
 
-  const rpt = document.createElement('div');
-  rpt.id = '__rpt__';
-  rpt.innerHTML = `
-<div ${s(`font-family:Arial,Helvetica,sans-serif;font-size:8pt;color:#000;padding:2mm;width:100%;box-sizing:border-box`)}>
-  <div ${s(C)}>
-    ${logoHtml}
-    <div ${s(sm)}>Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
-    <div ${s(sm)}>${COMPANY.country}</div>
-  </div>
-  ${HR('1.5pt')}
-  <div ${s(C)}>
-    <div ${s('font-size:12pt;font-weight:bold;margin:2pt 0 1pt')}>${receiptTitle}</div>
-    <div ${s('font-size:7pt;color:#555;margin-bottom:3pt')}>${receiptSubtitle}</div>
-  </div>
-  <table ${s('width:100%;border-collapse:collapse')}>
-    <tr><td ${s(`font-weight:bold;${td}`)}>${'Invoice:'}</td><td ${s(`${R};${td}`)}>${sale.invoiceNo}</td></tr>
-    <tr><td ${s(`font-weight:bold;${td}`)}>Date:</td><td ${s(`${R};${td}`)}>${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
-    <tr><td ${s(`font-weight:bold;${td}`)}>Time:</td><td ${s(`${R};${td}`)}>${new Date(sale.date).toLocaleTimeString('en-LK')}</td></tr>
-    <tr><td ${s(`font-weight:bold;${td}`)}>Customer:</td><td ${s(`${R};${td}`)}>${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}</td></tr>
-    <tr><td ${s(`font-weight:bold;${td}`)}>Payment:</td><td ${s(`${R};${td}`)}>${sale.paymentMethod.toUpperCase()}</td></tr>
-    <tr><td ${s(`font-weight:bold;${td}`)}>Served By:</td><td ${s(`${R};${td}`)}>${sale.cashierName || 'Cashier'}</td></tr>
-  </table>
-  ${HR('1.5pt')}
-  <table ${s('width:100%;border-collapse:collapse')}>
-    <thead><tr>
-      <th ${s('font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;text-align:left')}>Item</th>
-      <th ${s('font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;text-align:center')}>Qty</th>
-      <th ${s(`font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;${R}`)}>Price</th>
-      <th ${s(`font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;${R}`)}>Total</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  ${HRl}
-  <table ${s('width:100%;border-collapse:collapse')}>
-    <tr><td ${s(td)}>Subtotal:</td><td ${s(`${R};${td}`)}>LKR ${sale.subtotal.toFixed(2)}</td></tr>
-    ${sale.discount > 0 ? `<tr><td ${s(td)}>Discount:</td><td ${s(`${R};${td}`)}>-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
-    ${effectiveOther > 0.005 ? `<tr><td ${s(td)}>${sale.otherChargesDescription?.trim() || 'Other Charges'}:</td><td ${s(`${R};${td}`)}>+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
-    <tr>
-      <td ${s('font-size:12pt;font-weight:bold;border-top:2pt solid #000;padding-top:3pt')}>TOTAL:</td>
-      <td ${s(`font-size:12pt;font-weight:bold;border-top:2pt solid #000;padding-top:3pt;${R}`)}>LKR ${sale.total.toFixed(2)}</td>
-    </tr>
-  </table>
-  ${HR('1.5pt')}
-  <div ${s(C)}>
-    <div ${s('font-size:10pt;font-weight:bold;margin:3pt 0 1pt')}>${footerLine}</div>
-    <div ${s('font-size:7pt;color:#555')}>We appreciate your continued support.</div>
-  </div>
-  ${HRl}
-  <div ${s(C)}>
-    <div ${s('font-weight:bold;font-size:7pt;margin-bottom:1pt')}>Return Policy:</div>
-    <div ${s('font-size:7pt;color:#555')}>Items may be returned within 7 days with original receipt. Perishable goods are non-refundable.</div>
-  </div>
-  ${HRl}
-  <div ${s(C)}>
-    <div ${s('font-weight:bold;font-size:7pt;margin-bottom:1pt')}>Find us online:</div>
-    ${COMPANY.website ? `<div ${s('font-size:7pt;color:#555')}>${COMPANY.website}</div>` : ''}
-    ${COMPANY.facebook ? `<div ${s('font-size:7pt;color:#555')}>${COMPANY.facebook}</div>` : ''}
-    ${COMPANY.instagram ? `<div ${s('font-size:7pt;color:#555')}>${COMPANY.instagram}</div>` : ''}
-  </div>
-  <div ${s(`${C};font-size:6pt;color:#ccc;margin-top:5pt`)}>${COMPANY.name}</div>
-</div>`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-  // ── Inject print-only visibility styles ───────────────────────────────────
-  let visStyle = document.getElementById('__rpt_vis__') as HTMLStyleElement | null;
-  if (!visStyle) {
-    visStyle = document.createElement('style');
-    visStyle.id = '__rpt_vis__';
-    document.head.appendChild(visStyle);
-  }
-  visStyle.textContent = `
-    @media print {
-      html, body {
-        min-height: 0 !important;
-        height: auto !important;
-        background: white !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      body > *:not(#__rpt__) { display: none !important; }
-      #__rpt__ { display: block !important; }
-    }
-    @media screen { #__rpt__ { display: none !important; } }
-  `;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@page{size:80mm auto;margin:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:8pt;color:#000;padding:2mm;width:80mm}
+</style>
+</head><body>
+<div ${s(C)}>
+  <img src="${origin}/uploads/logo.PNG" style="width:40mm;display:block;margin:0 auto 4px" onerror="this.style.display='none'" />
+  <div ${s(sm)}>Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
+  <div ${s(sm)}>${COMPANY.country}</div>
+</div>
+${HR('1.5pt')}
+<div ${s(C)}>
+  <div ${s('font-size:12pt;font-weight:bold;margin:2pt 0 1pt')}>${receiptTitle}</div>
+  <div ${s('font-size:7pt;color:#555;margin-bottom:3pt')}>${receiptSubtitle}</div>
+</div>
+<table ${s('width:100%;border-collapse:collapse')}>
+  <tr><td ${s(`font-weight:bold;${td}`)}>Invoice:</td><td ${s(`${R};${td}`)}>${sale.invoiceNo}</td></tr>
+  <tr><td ${s(`font-weight:bold;${td}`)}>Date:</td><td ${s(`${R};${td}`)}>${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
+  <tr><td ${s(`font-weight:bold;${td}`)}>Time:</td><td ${s(`${R};${td}`)}>${new Date(sale.date).toLocaleTimeString('en-LK')}</td></tr>
+  <tr><td ${s(`font-weight:bold;${td}`)}>Customer:</td><td ${s(`${R};${td}`)}>${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}</td></tr>
+  <tr><td ${s(`font-weight:bold;${td}`)}>Payment:</td><td ${s(`${R};${td}`)}>${sale.paymentMethod.toUpperCase()}</td></tr>
+  <tr><td ${s(`font-weight:bold;${td}`)}>Served By:</td><td ${s(`${R};${td}`)}>${sale.cashierName || 'Cashier'}</td></tr>
+</table>
+${HR('1.5pt')}
+<table ${s('width:100%;border-collapse:collapse')}>
+  <thead><tr>
+    <th ${s('font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;text-align:left')}>Item</th>
+    <th ${s('font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;text-align:center')}>Qty</th>
+    <th ${s(`font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;${R}`)}>Price</th>
+    <th ${s(`font-size:8pt;font-weight:bold;padding:2pt 0;border-bottom:1.5pt solid #000;${R}`)}>Total</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+${HRl}
+<table ${s('width:100%;border-collapse:collapse')}>
+  <tr><td ${s(td)}>Subtotal:</td><td ${s(`${R};${td}`)}>LKR ${sale.subtotal.toFixed(2)}</td></tr>
+  ${sale.discount > 0 ? `<tr><td ${s(td)}>Discount:</td><td ${s(`${R};${td}`)}>-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
+  ${effectiveOther > 0.005 ? `<tr><td ${s(td)}>${sale.otherChargesDescription?.trim() || 'Other Charges'}:</td><td ${s(`${R};${td}`)}>+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
+  <tr>
+    <td ${s('font-size:12pt;font-weight:bold;border-top:2pt solid #000;padding-top:3pt')}>TOTAL:</td>
+    <td ${s(`font-size:12pt;font-weight:bold;border-top:2pt solid #000;padding-top:3pt;${R}`)}>LKR ${sale.total.toFixed(2)}</td>
+  </tr>
+</table>
+${HR('1.5pt')}
+<div ${s(C)}>
+  <div ${s('font-size:10pt;font-weight:bold;margin:3pt 0 1pt')}>${footerLine}</div>
+  <div ${s('font-size:7pt;color:#555')}>We appreciate your continued support.</div>
+</div>
+${HRl}
+<div ${s(C)}>
+  <div ${s('font-weight:bold;font-size:7pt;margin-bottom:1pt')}>Return Policy:</div>
+  <div ${s('font-size:7pt;color:#555')}>Items may be returned within 7 days with original receipt. Perishable goods are non-refundable.</div>
+</div>
+${COMPANY.website || COMPANY.facebook || COMPANY.instagram ? `
+${HRl}
+<div ${s(C)}>
+  <div ${s('font-weight:bold;font-size:7pt;margin-bottom:1pt')}>Find us online:</div>
+  ${COMPANY.website ? `<div ${s('font-size:7pt;color:#555')}>${COMPANY.website}</div>` : ''}
+  ${COMPANY.facebook ? `<div ${s('font-size:7pt;color:#555')}>${COMPANY.facebook}</div>` : ''}
+  ${COMPANY.instagram ? `<div ${s('font-size:7pt;color:#555')}>${COMPANY.instagram}</div>` : ''}
+</div>` : ''}
+<div ${s(`${C};font-size:6pt;color:#ccc;margin-top:5pt`)}>${COMPANY.name}</div>
+</body></html>`;
 
-  document.body.appendChild(rpt);
+  printWin.document.open();
+  printWin.document.write(html);
+  printWin.document.close();
 
-  // ── Print on the MAIN window so @page CSS is respected ───────────────────
+  // Wait for images to load then print
+  printWin.onload = () => {
+    printWin.focus();
+    printWin.print();
+    printWin.close();
+  };
+  // Fallback if onload doesn't fire (document.write sometimes skips it)
   setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      rpt.remove();
-    }, 1000);
-  }, 100);
+    if (!printWin.closed) {
+      printWin.focus();
+      printWin.print();
+      printWin.close();
+    }
+  }, 500);
 }
 
 export async function generateReport(data: {

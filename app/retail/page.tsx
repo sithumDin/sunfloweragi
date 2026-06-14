@@ -101,6 +101,10 @@ export default function RetailPage() {
     if (cart.length === 0) return;
     setProcessing(true);
 
+    // Open print window NOW while still in user-gesture context (before any await),
+    // so popup blockers won't fire. We'll write the receipt into it after the sale saves.
+    const printWin = window.open('', '_blank', 'width=400,height=600,menubar=no,toolbar=no,location=no,status=no');
+
     const saleData = {
       customerName: customerName || 'Walk-in Customer',
       items: cart.map((c) => ({
@@ -142,9 +146,12 @@ export default function RetailPage() {
         const updatedProducts = await fetch('/api/products').then((r) => r.json());
         setProducts(updatedProducts);
 
-        await printReceiptDirect(sale);
+        printReceiptDirect(sale, printWin);
+      } else {
+        printWin?.close();
       }
     } catch (error) {
+      printWin?.close();
       console.error('Checkout failed:', error);
       alert('Sale failed. Please try again.');
     } finally {
