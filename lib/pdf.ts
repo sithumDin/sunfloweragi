@@ -486,7 +486,8 @@ export async function generateReceipt(sale: Sale) {
 
 export async function printReceiptDirect(sale: Sale): Promise<void> {
   const isWholesale = sale.saleType === 'wholesale';
-  const receiptTitle = isWholesale ? 'WHOLESALE RECEIPT' : 'RETAIL RECEIPT';
+  const receiptTitle = isWholesale ? 'Wholesale Receipt' : 'Retail Receipt';
+  const receiptSubtitle = isWholesale ? 'Business Supply / Credit Sale' : 'Customer Purchase Receipt';
   const footerLine = isWholesale ? 'Thank you for your wholesale business!' : 'Thank you for your purchase!';
 
   let logoHtml = '';
@@ -503,82 +504,106 @@ export async function printReceiptDirect(sale: Sale): Promise<void> {
     }
   } catch { /* no logo */ }
 
-  const div = '─'.repeat(32);
-  const items = sale.items.map(item => {
-    const name = item.productName.length > 20 ? item.productName.substring(0, 20) + '..' : item.productName;
-    return `<tr>
-      <td>${name}</td>
-      <td style="text-align:center">${item.qty}</td>
-      <td style="text-align:right">${item.unitPrice.toFixed(2)}</td>
-      <td style="text-align:right">${item.total.toFixed(2)}</td>
-    </tr>`;
-  }).join('');
-
   const effectiveOther = Math.max(0, sale.total - (sale.subtotal - (sale.discount || 0)));
+
+  const itemRows = sale.items.map(item => `
+    <tr>
+      <td class="item-name">${item.productName}</td>
+      <td class="center">${item.qty}</td>
+      <td class="right">${item.unitPrice.toFixed(2)}</td>
+      <td class="right">${item.total.toFixed(2)}</td>
+    </tr>`).join('');
 
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Courier New',Courier,monospace;font-size:11px;width:80mm;padding:3mm 4mm;color:#000}
+body{font-family:Arial,Helvetica,sans-serif;font-size:10px;width:76mm;padding:3mm 2mm;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .center{text-align:center}
-.logo{max-width:55mm;display:block;margin:0 auto 3px}
-.company-name{font-size:14px;font-weight:bold}
-.tagline{font-size:9px;color:#555}
-.div{border-top:1px dashed #000;margin:4px 0}
-.title{font-size:12px;font-weight:bold;margin:3px 0}
-table{width:100%;border-collapse:collapse;font-size:10px}
-th{border-bottom:1px solid #000;padding:2px 0;text-align:left}
-th:not(:first-child){text-align:center}
-th:last-child,th:nth-child(3){text-align:right}
-td{padding:2px 0;vertical-align:top}
-td:not(:first-child){text-align:center}
-td:last-child,td:nth-child(3){text-align:right}
-.totals{width:100%;font-size:10px;margin-top:3px}
-.totals td{padding:1px 0}
-.totals .total-row td{font-size:12px;font-weight:bold;border-top:2px solid #000;padding-top:3px}
-.footer{text-align:center;font-size:9px;color:#555;margin-top:4px}
-.bold{font-weight:bold}
+.right{text-align:right}
+.logo{max-width:44mm;display:block;margin:0 auto 4px}
+.contact{font-size:9px;color:#555;margin-bottom:1px}
+.divider-green{border:none;border-top:1.5px solid #28783c;margin:5px 0}
+.divider-gray{border:none;border-top:1px solid #ccc;margin:4px 0}
+.receipt-title{color:#28783c;font-size:13px;font-weight:bold;margin:3px 0 1px}
+.receipt-subtitle{color:#888;font-size:9px;margin-bottom:4px}
+.info-table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:2px}
+.info-table td{padding:1.5px 0}
+.info-table .lbl{font-weight:bold}
+.info-table .val{text-align:right}
+.items-table{width:100%;border-collapse:collapse;font-size:10px;margin:2px 0}
+.items-table th{color:#28783c;font-weight:bold;padding:2px 0;border-bottom:1px solid #28783c}
+.items-table th.center{text-align:center}
+.items-table th.right{text-align:right}
+.items-table td{padding:2.5px 0;vertical-align:top;border-bottom:1px solid #eee}
+.items-table .item-name{text-align:left}
+.sub-table{width:100%;border-collapse:collapse;font-size:10px;margin-top:3px}
+.sub-table td{padding:1.5px 0}
+.sub-table .val{text-align:right}
+.total-row{font-size:13px;font-weight:bold;color:#28783c;border-top:2px solid #28783c;padding-top:3px}
+.thankyou{color:#28783c;font-size:12px;font-weight:bold;margin:4px 0 1px}
+.support{color:#666;font-size:9px}
+.policy-title{font-weight:bold;font-size:9px}
+.policy-text{color:#666;font-size:9px}
+.online-title{color:#28783c;font-weight:bold;font-size:9px}
+.watermark{color:#ccc;font-size:8px;margin-top:6px}
 @media print{
-  body{width:80mm;padding:2mm}
+  body{width:80mm;padding:2mm 1mm}
   @page{size:80mm auto;margin:0}
 }
 </style></head><body>
 <div class="center">
   ${logoHtml}
-  <div class="company-name">${COMPANY.name}</div>
-  <div class="tagline">${COMPANY.tagline}</div>
-  <div class="tagline">${COMPANY.address}</div>
-  <div class="tagline">Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
+  <div class="contact">Tel: ${COMPANY.phone1} | ${COMPANY.phone2}</div>
+  <div class="contact">${COMPANY.country}</div>
 </div>
-<div class="div"></div>
-<div class="center title">${receiptTitle}</div>
-<div class="div"></div>
-<table class="totals">
-  <tr><td>Invoice</td><td style="text-align:right">${sale.invoiceNo}</td></tr>
-  <tr><td>Date</td><td style="text-align:right">${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
-  <tr><td>Time</td><td style="text-align:right">${new Date(sale.date).toLocaleTimeString('en-LK')}</td></tr>
-  <tr><td>Customer</td><td style="text-align:right">${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}</td></tr>
-  <tr><td>Payment</td><td style="text-align:right">${sale.paymentMethod.toUpperCase()}</td></tr>
-  <tr><td>Served By</td><td style="text-align:right">${sale.cashierName || 'Cashier'}</td></tr>
-</table>
-<div class="div"></div>
-<table>
-  <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
-  <tbody>${items}</tbody>
-</table>
-<div class="div"></div>
-<table class="totals">
-  <tr><td>Subtotal</td><td style="text-align:right">LKR ${sale.subtotal.toFixed(2)}</td></tr>
-  ${sale.discount && sale.discount > 0 ? `<tr><td>Discount</td><td style="text-align:right">-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
-  ${effectiveOther > 0.005 ? `<tr><td>${sale.otherChargesDescription?.trim() || 'Other Charges'}</td><td style="text-align:right">+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
-  <tr class="total-row"><td class="bold">TOTAL</td><td style="text-align:right" class="bold">LKR ${sale.total.toFixed(2)}</td></tr>
-</table>
-<div class="div"></div>
-<div class="footer">
-  <div>${footerLine}</div>
-  <div>We appreciate your continued support.</div>
-  <div style="margin-top:4px">Return Policy: Items may be returned within 7 days with receipt.</div>
+<hr class="divider-green"/>
+<div class="center">
+  <div class="receipt-title">${receiptTitle}</div>
+  <div class="receipt-subtitle">${receiptSubtitle}</div>
 </div>
+<table class="info-table">
+  <tr><td class="lbl">Invoice:</td><td class="val">${sale.invoiceNo}</td></tr>
+  <tr><td class="lbl">Date:</td><td class="val">${new Date(sale.date).toLocaleDateString('en-LK')}</td></tr>
+  <tr><td class="lbl">Time:</td><td class="val">${new Date(sale.date).toLocaleTimeString('en-LK')}</td></tr>
+  <tr><td class="lbl">Customer:</td><td class="val">${sale.customerName || (isWholesale ? 'Wholesale Customer' : 'Walk-in Customer')}</td></tr>
+  <tr><td class="lbl">Payment:</td><td class="val">${sale.paymentMethod.toUpperCase()}</td></tr>
+  <tr><td class="lbl">Served By:</td><td class="val">${sale.cashierName || 'Cashier'}</td></tr>
+</table>
+<hr class="divider-green"/>
+<table class="items-table">
+  <thead><tr>
+    <th style="text-align:left">Item</th>
+    <th class="center">Qty</th>
+    <th class="right">Price</th>
+    <th class="right">Total</th>
+  </tr></thead>
+  <tbody>${itemRows}</tbody>
+</table>
+<hr class="divider-gray"/>
+<table class="sub-table">
+  <tr><td>Subtotal:</td><td class="val">LKR ${sale.subtotal.toFixed(2)}</td></tr>
+  ${sale.discount && sale.discount > 0 ? `<tr><td>Discount:</td><td class="val">-LKR ${sale.discount.toFixed(2)}</td></tr>` : ''}
+  ${effectiveOther > 0.005 ? `<tr><td>${sale.otherChargesDescription?.trim() || 'Other Charges'}:</td><td class="val">+LKR ${effectiveOther.toFixed(2)}</td></tr>` : ''}
+  <tr class="total-row"><td>TOTAL:</td><td class="val">LKR ${sale.total.toFixed(2)}</td></tr>
+</table>
+<hr class="divider-green"/>
+<div class="center">
+  <div class="thankyou">${footerLine}</div>
+  <div class="support">We appreciate your continued support.</div>
+</div>
+<hr class="divider-gray"/>
+<div class="center">
+  <div class="policy-title">Return Policy:</div>
+  <div class="policy-text">Items may be returned within 7 days with original receipt.<br/>Perishable goods are non-refundable.</div>
+</div>
+<hr class="divider-gray"/>
+<div class="center">
+  <div class="online-title">Find us online:</div>
+  ${COMPANY.website ? `<div class="policy-text">${COMPANY.website}</div>` : ''}
+  ${COMPANY.facebook ? `<div class="policy-text">${COMPANY.facebook}</div>` : ''}
+  ${COMPANY.instagram ? `<div class="policy-text">${COMPANY.instagram}</div>` : ''}
+</div>
+<div class="center watermark">${COMPANY.name}</div>
 </body></html>`;
 
   const iframe = document.createElement('iframe');
