@@ -67,6 +67,17 @@ export async function POST(request: NextRequest) {
     const prefix = body.saleType === 'wholesale' ? 'WS' : 'RT';
     const invoiceNo = `${prefix}-${String(count + 1).padStart(5, '0')}`;
 
+    // Validate stock availability before creating sale
+    for (const item of body.items) {
+      const product = await Product.findById(item.product);
+      if (!product || product.stock < item.qty) {
+        return Response.json(
+          { error: `Insufficient stock for "${item.productName || item.product}"` },
+          { status: 400 }
+        );
+      }
+    }
+
     const sale = await Sale.create({ ...body, invoiceNo, cashierId, cashierName });
 
     // Update stock for each item

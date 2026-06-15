@@ -83,7 +83,7 @@ export default function WholesalePage() {
     setCart(cart.map((c) => {
       if (c.product._id === productId) {
         const newQty = c.qty + delta;
-        if (newQty <= 0 || newQty > 10000) return c;
+        if (newQty <= 0 || newQty > c.product.stock) return c;
         return { ...c, qty: newQty };
       }
       return c;
@@ -97,7 +97,7 @@ export default function WholesalePage() {
 
     setCart(cart.map((c) => {
       if (c.product._id !== productId) return c;
-      const nextQty = Math.min(Math.max(parsed, 1), 10000);
+      const nextQty = Math.min(Math.max(parsed, 1), c.product.stock);
       return { ...c, qty: nextQty };
     }));
   };
@@ -162,43 +162,46 @@ export default function WholesalePage() {
         body: JSON.stringify(saleData),
       });
 
-      if (res.ok) {
-        const sale = await res.json();
-
-        if (isCredit) {
-          await fetch('/api/credit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              customer: selectedCustomer,
-              customerName: customer?.name,
-              sale: sale._id,
-              invoiceNo: sale.invoiceNo,
-              totalAmount: total,
-              paidAmount: 0,
-              remainingAmount: total,
-              payments: [],
-              status: 'pending',
-            }),
-          });
-          refreshCredits();
-        }
-
-        setCart([]);
-        setDiscount('');
-        setOtherCharges('');
-        setOtherChargesDescription('');
-        setSelectedCustomer('');
-        setIsCredit(false);
-        setPaymentMethod('cash');
-
-        const updatedProducts = await fetch('/api/products').then((r) => r.json());
-        setProducts(updatedProducts);
-
-        printReceiptDirect(sale, printWin);
-      } else {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
         printWin?.close();
+        alert(err.error || 'Sale failed. Please try again.');
+        return;
       }
+
+      const sale = await res.json();
+
+      if (isCredit) {
+        await fetch('/api/credit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer: selectedCustomer,
+            customerName: customer?.name,
+            sale: sale._id,
+            invoiceNo: sale.invoiceNo,
+            totalAmount: total,
+            paidAmount: 0,
+            remainingAmount: total,
+            payments: [],
+            status: 'pending',
+          }),
+        });
+        refreshCredits();
+      }
+
+      setCart([]);
+      setDiscount('');
+      setOtherCharges('');
+      setOtherChargesDescription('');
+      setSelectedCustomer('');
+      setIsCredit(false);
+      setPaymentMethod('cash');
+
+      const updatedProducts = await fetch('/api/products').then((r) => r.json());
+      setProducts(updatedProducts);
+
+      printReceiptDirect(sale, printWin);
     } catch (error) {
       printWin?.close();
       console.error('Checkout failed:', error);

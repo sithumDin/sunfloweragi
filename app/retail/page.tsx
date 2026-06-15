@@ -66,8 +66,7 @@ export default function RetailPage() {
     setCart(cart.map((c) => {
       if (c.product._id === productId) {
         const newQty = c.qty + delta;
-        if (newQty <= 0) return c;
-        if (newQty > 10000) return c;
+        if (newQty <= 0 || newQty > c.product.stock) return c;
         return { ...c, qty: newQty };
       }
       return c;
@@ -81,7 +80,7 @@ export default function RetailPage() {
 
     setCart(cart.map((c) => {
       if (c.product._id !== productId) return c;
-      const nextQty = Math.min(Math.max(parsed, 1), 10000);
+      const nextQty = Math.min(Math.max(parsed, 1), c.product.stock);
       return { ...c, qty: nextQty };
     }));
   };
@@ -139,23 +138,26 @@ export default function RetailPage() {
         body: JSON.stringify(saleData),
       });
 
-      if (res.ok) {
-        const sale = await res.json();
-
-        setCart([]);
-        setDiscount('');
-        setOtherCharges('');
-        setOtherChargesDescription('');
-        setCustomerName('');
-        setPaymentMethod('cash');
-
-        const updatedProducts = await fetch('/api/products').then((r) => r.json());
-        setProducts(updatedProducts);
-
-        printReceiptDirect(sale, printWin);
-      } else {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
         printWin?.close();
+        alert(err.error || 'Sale failed. Please try again.');
+        return;
       }
+
+      const sale = await res.json();
+
+      setCart([]);
+      setDiscount('');
+      setOtherCharges('');
+      setOtherChargesDescription('');
+      setCustomerName('');
+      setPaymentMethod('cash');
+
+      const updatedProducts = await fetch('/api/products').then((r) => r.json());
+      setProducts(updatedProducts);
+
+      printReceiptDirect(sale, printWin);
     } catch (error) {
       printWin?.close();
       console.error('Checkout failed:', error);
