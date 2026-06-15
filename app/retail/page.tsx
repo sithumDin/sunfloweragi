@@ -103,7 +103,13 @@ export default function RetailPage() {
 
     // Open print window NOW while still in user-gesture context (before any await),
     // so popup blockers won't fire. We'll write the receipt into it after the sale saves.
-    const printWin = window.open('', '_blank', 'width=400,height=600,menubar=no,toolbar=no,location=no,status=no');
+    const sw = window.screen.width;
+    const sh = window.screen.height;
+    const pw = Math.min(900, sw);
+    const ph = Math.min(750, sh);
+    const pl = Math.round((sw - pw) / 2);
+    const pt = Math.round((sh - ph) / 2);
+    const printWin = window.open('', '_blank', `width=${pw},height=${ph},left=${pl},top=${pt},menubar=no,toolbar=no,location=no,status=no`);
 
     const saleData = {
       customerName: customerName || 'Walk-in Customer',
