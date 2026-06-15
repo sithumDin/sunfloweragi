@@ -75,12 +75,12 @@ export default function RetailPage() {
 
   const setQty = (productId: string, qtyValue: string) => {
     const normalized = qtyValue.replace(/[,\s]/g, '');
-    const parsed = parseInt(normalized, 10);
-    if (Number.isNaN(parsed)) return;
+    const parsed = parseFloat(normalized);
+    if (Number.isNaN(parsed) || parsed <= 0) return;
 
     setCart(cart.map((c) => {
       if (c.product._id !== productId) return c;
-      const nextQty = Math.min(Math.max(parsed, 1), c.product.stock);
+      const nextQty = Math.min(parsed, c.product.stock);
       return { ...c, qty: nextQty };
     }));
   };
@@ -361,11 +361,12 @@ export default function RetailPage() {
                     <div className="cart-item-controls">
                       <input
                         type="number"
-                        min={1}
-                        max={10000}
+                        min={0.001}
+                        max={item.product.stock}
+                        step="any"
                         value={item.qty}
                         onChange={(e) => setQty(item.product._id!, e.target.value)}
-                        inputMode="numeric"
+                        inputMode="decimal"
                         className="form-input"
                         style={{ width: '100px', padding: '4px 8px', textAlign: 'center' }}
                       />

@@ -576,26 +576,18 @@ ${HRl}
   ${COMPANY.instagram ? `<div ${s('font-size:7pt;color:#555')}>${COMPANY.instagram}</div>` : ''}
 </div>` : ''}
 <div ${s(`${C};font-size:6pt;color:#ccc;margin-top:5pt`)}>${COMPANY.name}</div>
+<script>
+  window.addEventListener('load', function() {
+    window.focus();
+    window.print();
+    window.close();
+  });
+</script>
 </body></html>`;
 
   printWin.document.open();
   printWin.document.write(html);
   printWin.document.close();
-
-  // Wait for images to load then print
-  printWin.onload = () => {
-    printWin.focus();
-    printWin.print();
-    printWin.close();
-  };
-  // Fallback if onload doesn't fire (document.write sometimes skips it)
-  setTimeout(() => {
-    if (!printWin.closed) {
-      printWin.focus();
-      printWin.print();
-      printWin.close();
-    }
-  }, 500);
 }
 
 export async function generateReport(data: {
